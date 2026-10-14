@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import asdict, dataclass, field
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -33,6 +33,20 @@ def _money(value: Decimal) -> Decimal:
 
 class PricingError(ValueError):
     """Raised for unknown SKUs, invalid quantities or unsupported terms."""
+
+
+def parse_money(value) -> Decimal:
+    """Parse an amount as people and documents write it: '£15,976.80', ' 15976.8 ', 15976.8."""
+    if isinstance(value, Decimal):
+        return value
+    text = str(value).replace(",", "").replace("£", "").replace("GBP", "").strip()
+    try:
+        amount = Decimal(text)
+    except InvalidOperation:
+        raise PricingError(f"{value!r} is not an amount") from None
+    if not amount.is_finite():
+        raise PricingError(f"{value!r} is not an amount")
+    return amount
 
 
 @dataclass(frozen=True)
@@ -197,7 +211,7 @@ class PriceMatrix:
     def compare(self, sku: str, quantity: int, term_months: int, offered_total_net, tolerance_pct=1.0) -> dict:
         """Compare a price found elsewhere (contract, email, old sheet) against the matrix."""
         expected = self.quote(sku, quantity, term_months).total_net
-        offered = _d(offered_total_net)
+        offered = parse_money(offered_total_net)
         variance_pct = (offered - expected) / expected * 100 if expected else Decimal("0")
         ok = abs(variance_pct) <= _d(tolerance_pct)
         return {

@@ -58,3 +58,12 @@ def test_compare_flags_discrepancy(services):
 def test_catalog_text_is_deterministic(services):
     assert services.matrix.catalog_text() == services.matrix.catalog_text()
     assert "CRM-ENT" in services.matrix.catalog_text()
+
+
+def test_compare_accepts_formatted_amounts_and_rejects_garbage(services):
+    expected = services.matrix.quote("CRM-STD", 12, 12).total_net  # 3571.20
+    assert services.matrix.compare("CRM-STD", 12, 12, "£3,571.20")["within_tolerance"]
+    for bad in ("about three grand", "NaN", ""):
+        with pytest.raises(PricingError):
+            services.matrix.compare("CRM-STD", 12, 12, bad)
+    assert expected == Decimal("3571.20")

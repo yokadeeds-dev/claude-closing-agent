@@ -40,7 +40,7 @@ python -m venv .venv && .venv/Scripts/activate        # Windows; use bin/activat
 pip install -e ".[dev]"
 python scripts/make_sample_data.py                     # demo workbook, contracts, CRM
 cp .env.example .env                                   # set ANTHROPIC_API_KEY, CLOSING_WIDGET_SECRET, CLOSING_ADMIN_KEY
-uvicorn closing_agent.app:app --reload
+uvicorn closing_agent.app:app --reload --env-file .env   # --env-file loads .env (python-dotenv ships with uvicorn[standard])
 ```
 
 - Buyer links: `GET /api/admin/links` (header `X-Admin-Key`)
@@ -58,7 +58,7 @@ python scripts/live_demo.py D-1002   # 4-turn buyer conversation, writes docs/li
 ## Tests
 
 ```bash
-pytest          # 40 tests, no API key needed (Claude is replaced by a scripted fake client)
+pytest          # 48 tests, no API key needed (Claude is replaced by a scripted fake client)
 ruff check .
 ```
 

@@ -10,11 +10,14 @@ the prompt.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
 from .pricing import PricingError
 from .services import Services
+
+log = logging.getLogger(__name__)
 
 
 def _schema(properties: dict, required: list[str] | None = None) -> dict:
@@ -82,6 +85,10 @@ class DealTools:
             return json.dumps(handler(**args), default=str)
         except (PricingError, ValueError, KeyError, TypeError) as exc:
             raise ToolError(str(exc)) from exc
+        except Exception as exc:  # e.g. missing/corrupt contract PDF, database error
+            log.exception("tool %s failed for deal %s", name, self.deal_id)
+            raise ToolError(f"{name} is temporarily unavailable ({type(exc).__name__}); "
+                            "offer to hand off to the sales team") from exc
 
     # ---------- handlers ----------
 

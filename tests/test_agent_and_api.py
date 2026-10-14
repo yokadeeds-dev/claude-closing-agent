@@ -116,3 +116,46 @@ def test_chat_without_credentials_returns_503(services):
     c = client_for(services, NoAuth([]))
     r = c.post(f"/api/deals/D-1002/chat?t={services.token('D-1002')}", json={"message": "hi"})
     assert r.status_code == 503
+
+
+# ---------- regressions from code review ----------
+
+def test_refusal_after_tool_round_rolls_back_whole_turn(services):
+    fake = FakeClient([
+        response([tool_block("get_deal_summary", {}, "tu_1")], "tool_use"),
+        response([], "refusal", stop_details=SimpleNamespace(category=None)),
+        response([text_block("Fine")], "end_turn"),
+    ])
+    agent = ClosingAgent(services, client=fake)
+    assert agent.chat("D-1002", "odd request").stop_reason == "refusal"
+    assert agent.history("D-1002") == []  # no orphaned tool_use left behind
+    agent.chat("D-1002", "normal question")
+    assert [m["role"] for m in fake.requests[2]["messages"]] == ["user"]
+
+
+def test_api_error_mid_turn_rolls_back_history(services):
+    class Boom(FakeClient):
+        def _create(self, **kwargs):
+            if self.requests:
+                raise RuntimeError("network down")
+            return super()._create(**kwargs)
+
+    fake = Boom([response([tool_block("audit_contract", {}, "tu_1")], "tool_use")])
+    agent = ClosingAgent(services, client=fake)
+    try:
+        agent.chat("D-1002", "check my contract")
+    except RuntimeError:
+        pass
+    assert agent.history("D-1002") == []
+
+
+def test_corrupt_contract_becomes_tool_error_not_crash(services):
+    (services.settings.root / "data/contracts/D-1002_wearside.pdf").write_bytes(b"%PDF-1.4 truncated")
+    fake = FakeClient([
+        response([tool_block("audit_contract", {}, "tu_1")], "tool_use"),
+        response([text_block("I'll pass this to the team.")], "end_turn"),
+    ])
+    reply = ClosingAgent(services, client=fake).chat("D-1002", "is my contract ok?")
+    result = fake.requests[1]["messages"][-1]["content"][0]
+    assert result["is_error"] is True and "temporarily unavailable" in result["content"]
+    assert reply.text == "I'll pass this to the team."

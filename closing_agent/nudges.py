@@ -8,7 +8,9 @@ appends to a JSONL file - swap in SMTP / the CRM's e-mail API in production.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -17,6 +19,8 @@ from typing import Protocol
 
 from .audit import AuditResult
 from .crm import CRM
+
+log = logging.getLogger(__name__)
 
 
 class Sender(Protocol):
@@ -67,6 +71,9 @@ class NudgeService:
         self.db.executescript(SCHEMA)
         self.config, self.messages, self.crm = config, messages, crm
         self.audit_deal, self.sender, self.link_for = audit_deal, sender, link_for
+        # cron (run_due) and the agent (send_now) run in different threads; every
+        # check-then-send must be atomic or the buyer can get the same reminder twice
+        self._lock = threading.RLock()
 
     def close(self) -> None:
         self.db.close()
@@ -85,7 +92,14 @@ class NudgeService:
         }
 
     def _attempts(self, deal_id: str) -> int:
-        return self.db.execute("SELECT COUNT(*) FROM nudges WHERE deal_id=?", (deal_id,)).fetchone()[0]
+        """Reminders sent in the current sequence (a restarted sequence counts from zero)."""
+        return self.db.execute(
+            "SELECT COUNT(*) FROM nudges n JOIN sequences s ON s.deal_id = n.deal_id "
+            "WHERE n.deal_id=? AND n.sent_at >= s.started_at", (deal_id,)).fetchone()[0]
+
+    def _status(self, deal_id: str) -> str | None:
+        row = self.db.execute("SELECT status FROM sequences WHERE deal_id=?", (deal_id,)).fetchone()
+        return row[0] if row else None
 
     def _last_sent(self, deal_id: str) -> datetime | None:
         row = self.db.execute("SELECT MAX(sent_at) FROM nudges WHERE deal_id=?", (deal_id,)).fetchone()
@@ -94,46 +108,63 @@ class NudgeService:
     # ---------- actions ----------
 
     def start(self, deal_id: str, now: datetime) -> None:
-        self.db.execute("INSERT OR IGNORE INTO sequences VALUES (?, ?, 'active')", (deal_id, _iso(now)))
-        self.db.commit()
+        """Start a sequence, or restart one that is done/escalated (rep button, new upload)."""
+        with self._lock:
+            self.db.execute(
+                "INSERT INTO sequences VALUES (?, ?, 'active') ON CONFLICT(deal_id) DO UPDATE "
+                "SET status='active', started_at=excluded.started_at WHERE sequences.status != 'active'",
+                (deal_id, _iso(now)))
+            self.db.commit()
 
     def send_now(self, deal_id: str, now: datetime) -> dict:
         """Agent-triggered reminder, rate-limited so the model cannot spam the buyer."""
-        audit = self.audit_deal(deal_id)
-        if audit.complete:
-            return {"sent": False, "reason": "contract is already complete"}
-        last = self._last_sent(deal_id)
-        gap = timedelta(hours=self.config.min_hours_between)
-        if last and now - last < gap:
-            return {"sent": False, "reason": f"last reminder was sent at {_iso(last)}; "
-                                             f"next one allowed after {_iso(last + gap)}"}
-        self.start(deal_id, now)
-        return {"sent": True, **self._send(deal_id, audit, now, "agent")}
+        with self._lock:
+            if self._status(deal_id) == "escalated":
+                return {"sent": False, "reason": "deal was handed to the sales team; they will follow up"}
+            audit = self.audit_deal(deal_id)
+            if audit.complete:
+                return {"sent": False, "reason": "contract is already complete"}
+            last = self._last_sent(deal_id)
+            gap = timedelta(hours=self.config.min_hours_between)
+            if last and now - last < gap:
+                return {"sent": False, "reason": f"last reminder was sent at {_iso(last)}; "
+                                                 f"next one allowed after {_iso(last + gap)}"}
+            self.start(deal_id, now)
+            if self._attempts(deal_id) >= self.config.escalate_after:
+                return {"sent": False, "reason": "maximum number of reminders reached"}
+            return {"sent": True, **self._send(deal_id, audit, now, "agent")}
 
     def run_due(self, now: datetime) -> list[dict]:
         """Process every active sequence. Call from cron / a scheduler, e.g. hourly."""
-        events = []
-        rows = self.db.execute("SELECT deal_id, started_at FROM sequences WHERE status='active'").fetchall()
-        for deal_id, started_at in rows:
-            audit = self.audit_deal(deal_id)
-            if audit.complete:
-                self._set_status(deal_id, "done")
-                self.crm.add_note(deal_id, "Contract audit passed - reminder sequence stopped.")
-                events.append({"deal_id": deal_id, "event": "completed"})
-                continue
-            attempts = self._attempts(deal_id)
-            if attempts >= self.config.escalate_after:
-                self._escalate(deal_id, audit, attempts)
-                events.append({"deal_id": deal_id, "event": "escalated"})
-                continue
-            if attempts >= len(self.config.schedule_days):
-                continue
-            due = datetime.fromisoformat(started_at) + timedelta(days=self.config.schedule_days[attempts])
-            last = self._last_sent(deal_id)
-            too_soon = last and now - last < timedelta(hours=self.config.min_hours_between)
-            if now >= due and not too_soon:
-                events.append({"deal_id": deal_id, "event": "sent", **self._send(deal_id, audit, now, "schedule")})
-        return events
+        with self._lock:
+            events = []
+            rows = self.db.execute("SELECT deal_id, started_at FROM sequences WHERE status='active'").fetchall()
+            for deal_id, started_at in rows:
+                try:
+                    events.extend(self._process(deal_id, started_at, now))
+                except Exception as exc:  # one broken contract must not stop reminders for every other deal
+                    log.exception("reminder run failed for deal %s", deal_id)
+                    events.append({"deal_id": deal_id, "event": "error", "error": str(exc)})
+            return events
+
+    def _process(self, deal_id: str, started_at: str, now: datetime) -> list[dict]:
+        audit = self.audit_deal(deal_id)
+        if audit.complete:
+            self._set_status(deal_id, "done")
+            self.crm.add_note(deal_id, "Contract audit passed - reminder sequence stopped.")
+            return [{"deal_id": deal_id, "event": "completed"}]
+        attempts = self._attempts(deal_id)
+        if attempts >= self.config.escalate_after:
+            self._escalate(deal_id, audit, attempts)
+            return [{"deal_id": deal_id, "event": "escalated"}]
+        if attempts >= len(self.config.schedule_days):
+            return []
+        due = datetime.fromisoformat(started_at) + timedelta(days=self.config.schedule_days[attempts])
+        last = self._last_sent(deal_id)
+        too_soon = last and now - last < timedelta(hours=self.config.min_hours_between)
+        if now >= due and not too_soon:
+            return [{"deal_id": deal_id, "event": "sent", **self._send(deal_id, audit, now, "schedule")}]
+        return []
 
     # ---------- internals ----------
 
