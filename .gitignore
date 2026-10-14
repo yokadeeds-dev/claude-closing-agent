@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.env
+data/state.sqlite
+data/outbox.jsonl
+data/contracts/uploads/
+data/crm.tmp
+*.egg-info/
+docs/NOTES_INTERNAL.md

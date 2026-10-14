@@ -1,0 +1,34 @@
+# Contract templates the document audit knows about.
+# Add a new template by copying the block below and renaming the fields to match
+# the field names in your PDF form (or the printed labels in a flat PDF).
+#
+#   fields:      label shown to the buyer, check = one of: text, email, date, integer, money
+#   signatures:  must be filled / signed
+#   initials:    page number -> field name
+#   price_check: which fields hold the order line, so the price can be compared with the matrix
+
+msa_v3:
+  name: Master Subscription Agreement v3
+  fields:
+    customer_name:     {label: Customer name,    check: text}
+    company_number:    {label: Company number,   check: text}
+    billing_email:     {label: Billing email,    check: email}
+    start_date:        {label: Start date,       check: date}
+    sku:               {label: Product SKU,      check: text}
+    quantity:          {label: Quantity,         check: integer}
+    term_months:       {label: Term (months),    check: integer}
+    total_net:         {label: Total net (GBP),  check: money}
+    sig_customer_date: {label: Date signed,      check: date}
+  signatures:
+    sig_customer: Customer signature
+    sig_provider: Provider signature
+  initials:
+    1: init_p1
+    2: init_p2
+    3: init_p3
+  initials_label: Initials
+  price_check:
+    sku: sku
+    quantity: quantity
+    term_months: term_months
+    total_net: total_net

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Closing status</title>
+<style>
+  :root { --bg:#fff; --ink:#1d2433; --muted:#667085; --line:#e4e7ec; --accent:#2f5bea;
+          --ok:#12805c; --bad:#b42318; --warn:#b54708; --chip:#f2f4f7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161a22; --ink:#e7eaf0; --muted:#98a2b3; --line:#2b3240; --accent:#7b9cff;
+            --ok:#4cc79a; --bad:#ff8a80; --warn:#fdb022; --chip:#232b3d; }
+  }
+  body { margin:0; padding:12px; font:13px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--ink); max-width:380px; }
+  h2 { font-size:15px; margin:0; } h3 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:14px 0 6px; }
+  .chip { display:inline-block; padding:2px 8px; border-radius:99px; background:var(--chip); font-size:12px; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  ul { margin:0; padding-left:16px; } li { margin:2px 0; }
+  table { width:100%; border-collapse:collapse; } td { padding:3px 0; border-bottom:1px solid var(--line); }
+  td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+  button { margin-top:10px; padding:7px 10px; border:1px solid var(--accent); border-radius:8px;
+           background:transparent; color:var(--accent); font:inherit; cursor:pointer; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="root" class="muted">Loading…</div>
+<script>
+const deal = new URLSearchParams(location.search).get("deal");
+const key = new URLSearchParams(location.hash.slice(1)).get("key") || "";
+const H = {"X-Admin-Key": key};
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const gbp = (v) => "£" + Number(v).toLocaleString("en-GB", {minimumFractionDigits: 2});
+
+async function load() {
+  const r = await fetch(`/api/admin/deals/${encodeURIComponent(deal)}`, {headers: H});
+  if (!r.ok) { document.getElementById("root").textContent = (await r.json()).detail; return; }
+  const d = await r.json(), a = d.audit;
+  const findings = a.findings.length
+    ? `<ul>${a.findings.map(f => `<li class="${f.severity === "error" ? "bad" : "warn"}">${
+        f.page ? "p." + f.page + " " : ""}${esc(f.label)}: ${esc(f.issue)}${f.detail ? " - " + esc(f.detail) : ""}</li>`).join("")}</ul>`
+    : `<span class="ok">✓ complete</span>`;
+  const opts = d.price_options.options.map(o =>
+    `<tr><td>${o.term_months ? o.term_months + " mo" : "one-off"} · ${gbp(o.unit_net)}/unit</td><td>${gbp(o.total_net)}</td></tr>`).join("");
+  const seq = d.reminders.sequence;
+  document.getElementById("root").innerHTML = `
+    <h2>${esc(d.deal.company)}</h2>
+    <div class="muted">${esc(d.deal.contact)} · ${esc(d.deal.email)}</div>
+    <div style="margin-top:6px"><span class="chip">${esc(d.deal.stage)}</span>
+      <span class="chip">${d.deal.quantity} × ${esc(d.deal.sku)} · ${d.deal.term_months} mo</span></div>
+    <h3>Contract audit (${esc(a.mode)})</h3>${findings}
+    <h3>Price list</h3><table>${opts}</table>
+    <h3>Reminders</h3>
+    <div>${seq ? esc(seq.status) + " since " + esc(seq.started_at) : "not started"} · ${d.reminders.sent.length} sent</div>
+    <button id="start">Start reminder sequence</button>
+    <button id="copy">Copy buyer link</button>
+    <h3>Tasks</h3>${d.tasks.length ? "<ul>" + d.tasks.map(t => `<li>${esc(t.title)}</li>`).join("") + "</ul>" : '<span class="muted">none</span>'}
+    <h3>Activity</h3><ul>${d.notes.slice(-8).reverse().map(n => `<li><span class="muted">${esc(n.at.slice(0,16))}</span> ${esc(n.text)}</li>`).join("")}</ul>`;
+  document.getElementById("start").onclick = async () => {
+    await fetch(`/api/admin/deals/${encodeURIComponent(deal)}/start-reminders`, {method: "POST", headers: H}); load();
+  };
+  document.getElementById("copy").onclick = () => navigator.clipboard.writeText(d.widget_link);
+}
+load();
+</script>
+</body>
+</html>

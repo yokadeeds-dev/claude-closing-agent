@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Complete your agreement</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2433; --muted:#667085; --line:#e4e7ec;
+          --accent:#2f5bea; --ok:#12805c; --bad:#b42318; --bubble:#eef2ff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151c; --card:#1b2029; --ink:#e7eaf0; --muted:#98a2b3; --line:#2b3240;
+            --accent:#7b9cff; --ok:#4cc79a; --bad:#ff8a80; --bubble:#232b3d; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:760px; margin:0 auto; padding:16px; display:grid; gap:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .price { font-size:22px; font-weight:650; }
+  ul.items { margin:6px 0 0; padding-left:18px; }
+  ul.items li { color:var(--bad); }
+  .done { color:var(--ok); font-weight:600; }
+  #log { height:380px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+  .msg { padding:9px 12px; border-radius:12px; max-width:85%; white-space:pre-wrap; }
+  .me { align-self:flex-end; background:var(--accent); color:#fff; }
+  .bot { align-self:flex-start; background:var(--bubble); }
+  form { display:flex; gap:8px; margin-top:10px; }
+  input[type=text] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+                     background:var(--card); color:var(--ink); font:inherit; }
+  button, label.btn { padding:10px 14px; border:0; border-radius:10px; background:var(--accent);
+                      color:#fff; font:inherit; cursor:pointer; }
+  button:disabled { opacity:.5; }
+  label.btn { display:inline-block; background:transparent; color:var(--accent); border:1px solid var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="summary"><span class="muted">Loading…</span></div>
+  <div class="card">
+    <div id="log" aria-live="polite"></div>
+    <form id="f">
+      <input id="q" type="text" placeholder="Ask about pricing, options or your contract…" autocomplete="off">
+      <button id="send">Send</button>
+    </form>
+    <div style="margin-top:10px">
+      <label class="btn">Upload signed contract (PDF)
+        <input id="up" type="file" accept="application/pdf" hidden>
+      </label>
+    </div>
+  </div>
+</div>
+<script>
+const p = new URLSearchParams(location.search);
+const deal = p.get("deal"), token = p.get("t") || "";
+const api = (path) => `/api/deals/${encodeURIComponent(deal)}${path}?t=${encodeURIComponent(token)}`;
+const $ = (id) => document.getElementById(id);
+const gbp = (v) => "£" + Number(v).toLocaleString("en-GB", {minimumFractionDigits: 2});
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function bubble(text, who) {
+  const d = document.createElement("div");
+  d.className = "msg " + who; d.textContent = text;
+  $("log").appendChild(d); $("log").scrollTop = $("log").scrollHeight;
+}
+
+async function loadSummary() {
+  const r = await fetch(api(""));
+  if (!r.ok) { $("summary").textContent = "This link is not valid."; return; }
+  const s = await r.json(), pr = s.price, c = s.contract;
+  const items = c.complete
+    ? `<div class="done">✓ Your contract is complete.</div>`
+    : `<div class="muted">Still needed on your contract:</div><ul class="items">${
+        c.open_items.map(i => `<li>${esc(i)}</li>`).join("")}</ul>`;
+  $("summary").innerHTML = `
+    <h1>${esc(s.deal.company)}</h1>
+    <div class="muted">${s.deal.quantity} × ${esc(pr.name)} · ${s.deal.term_months} months</div>
+    <div class="price">${pr.monthly_net ? gbp(pr.monthly_net) + " / month" : gbp(pr.total_net)}
+      <span class="muted">net · total ${gbp(pr.total_net)} + VAT</span></div>
+    <div style="margin-top:8px">${items}</div>`;
+}
+
+$("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("q").value.trim(); if (!text) return;
+  $("q").value = ""; bubble(text, "me"); $("send").disabled = true;
+  try {
+    const r = await fetch(api("/chat"), {method: "POST", headers: {"Content-Type": "application/json"},
+                                         body: JSON.stringify({message: text})});
+    const j = await r.json();
+    bubble(r.ok ? j.reply : (j.detail || "Something went wrong."), "bot");
+    loadSummary();
+  } finally { $("send").disabled = false; $("q").focus(); }
+});
+
+$("up").addEventListener("change", async () => {
+  const f = $("up").files[0]; if (!f) return;
+  const fd = new FormData(); fd.append("file", f);
+  const r = await fetch(api("/contract"), {method: "POST", body: fd});
+  const j = await r.json();
+  bubble(r.ok ? (j.complete ? "Contract received - everything is complete. Thank you!"
+                            : "Contract received. Still open:\n- " + j.open_items.join("\n- "))
+              : (j.detail || "Upload failed."), "bot");
+  loadSummary();
+});
+
+bubble("Hi! I can walk you through your options and help you finish the paperwork. What would you like to do?", "bot");
+loadSummary();
+</script>
+</body>
+</html>
