@@ -58,8 +58,16 @@ python scripts/live_demo.py D-1002   # 4-turn buyer conversation, writes docs/li
 ## Tests
 
 ```bash
-pytest          # 48 tests, no API key needed (Claude is replaced by a scripted fake client)
+pytest          # 55 tests, no API key needed (Claude is replaced by a scripted fake client)
 ruff check .
+```
+
+## Agent evaluation
+
+A golden set of 16 buyer conversations graded on end state, tool calls, invented prices, required facts and a judged rubric — run against the real agent. Opus 5.5, Sonnet 5.5 and Haiku 5.5 all pass 16/16; cost per buyer turn $0.029 / $0.013 / $0.0008. What that does and does not prove: [eval/RESULTS.md](eval/RESULTS.md).
+
+```bash
+python -m eval.run --variant baseline        # ~$0.50 on Opus 5.5
 ```
 
 ## Status
@@ -72,4 +80,4 @@ ruff check .
 | M4 Closing agent + reminders + guardrails | ✅ done — unit-tested with a fake client and verified live against the Claude API ([transcript](docs/live_run.md)) |
 | M5 Widget, sidebar, hand-off guide | ✅ done; real CRM adapter (client's CRM unknown) and deployment pending |
 
-Not done (would need client input): real CRM adapter, e-mail delivery (SMTP/CRM API instead of `data/outbox.jsonl`), e-sign webhook, scanned-PDF signature detection (vision), persistent chat sessions across restarts, LLM evaluation set.
+Not done (would need client input): real CRM adapter, e-mail delivery (SMTP/CRM API instead of `data/outbox.jsonl`), e-sign webhook, scanned-PDF signature detection (vision), persistent chat sessions across restarts, inbound rate limit on `/chat`, audit log.

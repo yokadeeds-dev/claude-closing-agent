@@ -9,3 +9,6 @@ data/contracts/uploads/
 data/crm.tmp
 *.egg-info/
 docs/NOTES_INTERNAL.md
+
+# eval runs: traces are bulky and reproducible
+eval/runs/*/traces/
