@@ -1,0 +1,50 @@
+{
+  "deals": {
+    "D-1001": {
+      "company": "Northbay Logistics Ltd",
+      "contact": "Jo Carter",
+      "email": "jo.carter@northbay.example",
+      "sku": "CRM-PRO",
+      "quantity": 30,
+      "term_months": 24,
+      "stage": "contract_sent",
+      "template": "msa_v3",
+      "contract": "data/contracts/D-1001_northbay.pdf"
+    },
+    "D-1002": {
+      "company": "Wearside Dental Group",
+      "contact": "Sam Patel",
+      "email": "sam.patel@wearside.example",
+      "sku": "CRM-STD",
+      "quantity": 12,
+      "term_months": 12,
+      "stage": "contract_sent",
+      "template": "msa_v3",
+      "contract": "data/contracts/D-1002_wearside.pdf"
+    },
+    "D-1003": {
+      "company": "Tyne Freight plc",
+      "contact": "Alex Kim",
+      "email": "alex.kim@tynefreight.example",
+      "sku": "CRM-ENT",
+      "quantity": 25,
+      "term_months": 36,
+      "stage": "contract_sent",
+      "template": "msa_v3",
+      "contract": "data/contracts/D-1003_tynefreight.pdf"
+    },
+    "D-1004": {
+      "company": "Roker Studios",
+      "contact": "Robin Hall",
+      "email": "robin@roker.example",
+      "sku": "CRM-STD",
+      "quantity": 8,
+      "term_months": 12,
+      "stage": "verbal_yes",
+      "template": "msa_v3",
+      "contract": "data/contracts/D-1004_roker_gdoc.pdf"
+    }
+  },
+  "notes": [],
+  "tasks": []
+}

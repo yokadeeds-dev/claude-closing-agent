@@ -1,0 +1,26 @@
+# Business settings - safe for the sales team to edit (see docs/HANDOFF.md).
+
+# Claude model and effort. Override per environment with CLOSING_MODEL / CLOSING_EFFORT.
+model: claude-opus-5-5
+effort: medium            # low | medium | high
+
+# Guardrails
+max_extra_discount_pct: 5   # the agent may grant up to this on top of the price list; above -> human approval
+price_tolerance_pct: 1.0    # contract price may differ from the price list by at most this
+vat_rate: 0.20
+
+# Reminder sequence for incomplete contracts
+nudges:
+  schedule_days: [0, 2, 5, 9]   # days after the contract was sent
+  min_hours_between: 24         # the agent cannot send reminders more often than this
+  escalate_after: 4             # after this many reminders, hand over to a person
+
+paths:
+  pricing_matrix: data/pricing_matrix.xlsx
+  contract_templates: config/contract_templates.yaml
+  system_prompt: config/system_prompt.md
+  nudge_messages: config/nudge_messages.yaml
+  crm: data/crm.json
+  state_db: data/state.sqlite
+  outbox: data/outbox.jsonl
+  uploads: data/contracts/uploads

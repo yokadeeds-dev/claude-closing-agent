@@ -1,0 +1,41 @@
+# Reminder e-mails sent while a contract is incomplete.
+# Placeholders: {contact} {company} {missing_list} {link}
+# One entry per attempt; the last one is reused if there are more attempts.
+
+reminders:
+  - subject: "Nearly there - a few details left on your {company} agreement"
+    body: |
+      Hi {contact},
+
+      Thanks again for choosing us. Your agreement is almost complete - we just need:
+
+      {missing_list}
+
+      You can finish it here: {link}
+
+      Best regards,
+      The Closer CRM team
+  - subject: "Quick reminder: {company} agreement"
+    body: |
+      Hi {contact},
+
+      A friendly reminder that these items are still open on your agreement:
+
+      {missing_list}
+
+      It only takes a couple of minutes: {link}
+  - subject: "Your {company} start date depends on these items"
+    body: |
+      Hi {contact},
+
+      To keep your planned start date we need the following before we can activate your account:
+
+      {missing_list}
+
+      Finish here: {link} - or simply reply to this e-mail if anything is unclear.
+
+escalation_task: |
+  {company}: contract still incomplete after {attempts} reminders.
+  Open items:
+  {missing_list}
+  Please call {contact}.
