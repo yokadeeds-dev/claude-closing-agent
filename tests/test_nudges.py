@@ -59,3 +59,56 @@ def test_agent_triggered_reminder_is_rate_limited(services):
 def test_no_reminder_for_complete_contract(services):
     assert services.nudges.send_now("D-1001", T0) == {"sent": False, "reason": "contract is already complete"}
     assert outbox(services) == []
+
+
+# ---------- regressions from code review ----------
+
+def test_one_broken_contract_does_not_block_other_deals(services):
+    n = services.nudges
+    n.start("D-1002", T0)
+    n.start("D-1003", T0)
+    (services.settings.root / "data/contracts/D-1002_wearside.pdf").write_bytes(b"%PDF-1.4 truncated")
+    events = {e["deal_id"]: e["event"] for e in n.run_due(T0)}
+    assert events == {"D-1002": "error", "D-1003": "sent"}
+
+
+def test_agent_cannot_remind_after_escalation(services):
+    n = services.nudges
+    n.start("D-1002", T0)
+    for day in (0, 2, 5, 9, 10):
+        n.run_due(T0 + timedelta(days=day))
+    r = n.send_now("D-1002", T0 + timedelta(days=20))
+    assert r["sent"] is False and "sales team" in r["reason"]
+
+
+def test_rep_can_restart_escalated_sequence(services):
+    n = services.nudges
+    n.start("D-1002", T0)
+    for day in (0, 2, 5, 9, 10):
+        n.run_due(T0 + timedelta(days=day))
+    assert n.status("D-1002")["sequence"]["status"] == "escalated"
+    restart = T0 + timedelta(days=20)
+    n.start("D-1002", restart)
+    assert n.status("D-1002")["sequence"]["status"] == "active"
+    events = n.run_due(restart)
+    assert [e["event"] for e in events] == ["sent"] and events[0]["attempt"] == 1
+
+
+def test_concurrent_sends_do_not_double_send(services):
+    import threading
+
+    n = services.nudges
+    barrier = threading.Barrier(4)
+    results = []
+
+    def go():
+        barrier.wait()
+        results.append(n.send_now("D-1002", T0)["sent"])
+
+    threads = [threading.Thread(target=go) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(results) == [False, False, False, True]
+    assert len(outbox(services)) == 1

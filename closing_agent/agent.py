@@ -46,10 +46,17 @@ class ClosingAgent:
         self.s.crm.get_deal(deal_id)  # raises DealNotFound before we spend tokens
         lock = self._locks.setdefault(deal_id, threading.Lock())
         with lock:  # one turn at a time per deal keeps the history consistent
-            return self._turn(deal_id, user_text)
+            messages = self.history(deal_id)
+            turn_start = len(messages)
+            try:
+                return self._turn(deal_id, user_text, messages, turn_start)
+            except BaseException:
+                # Never leave a half-finished turn (e.g. a tool_use without its tool_result)
+                # in the history - every later request for this deal would be rejected.
+                del messages[turn_start:]
+                raise
 
-    def _turn(self, deal_id: str, user_text: str) -> Reply:
-        messages = self.history(deal_id)
+    def _turn(self, deal_id: str, user_text: str, messages: list, turn_start: int) -> Reply:
         tools = DealTools(self.s, deal_id)
         messages.append({"role": "user", "content": user_text})
         calls: list[dict] = []
@@ -71,8 +78,9 @@ class ClosingAgent:
             _add_usage(usage, response)
 
             if response.stop_reason == "refusal":
-                # Drop the unanswered user turn so the history stays a clean prefix, then hand off.
-                messages.pop()
+                # Drop the whole turn (user text plus any tool rounds) so the history stays a
+                # clean, well-formed prefix, then hand off.
+                del messages[turn_start:]
                 category = getattr(response.stop_details, "category", None)
                 self.s.crm.create_task(deal_id, "Closing agent declined a message",
                                        f"Category: {category}. Buyer wrote: {user_text[:500]}")

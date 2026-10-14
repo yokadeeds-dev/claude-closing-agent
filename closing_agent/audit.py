@@ -15,13 +15,12 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import yaml
 from pypdf import PdfReader
 
-from .pricing import PriceMatrix, PricingError
+from .pricing import PriceMatrix, PricingError, parse_money
 
 BLANK = re.compile(r"^[\s_\-.]*$")
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -132,8 +131,8 @@ def _check_value(kind: str, value: str) -> str | None:
         return "not a whole number"
     if kind == "money":
         try:
-            Decimal(value.replace(",", "").replace("£", "").strip())
-        except InvalidOperation:
+            parse_money(value)
+        except PricingError:
             return "not an amount"
     if kind == "date":
         for fmt in DATE_FORMATS:
@@ -197,8 +196,7 @@ def audit_contract(
         try:
             qty, term = int(values[pc["quantity"]]), int(values[pc["term_months"]])
             if not _is_blank(values.get(pc["total_net"])):
-                offered = values[pc["total_net"]].replace(",", "").replace("£", "").strip()
-                cmp = matrix.compare(sku, qty, term, offered, tolerance_pct)
+                cmp = matrix.compare(sku, qty, term, values[pc["total_net"]], tolerance_pct)
                 if not cmp["within_tolerance"]:
                     findings.append(Finding(
                         pc["total_net"], template["fields"][pc["total_net"]]["label"],

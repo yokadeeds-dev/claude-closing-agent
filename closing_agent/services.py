@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from .nudges import NudgeConfig, NudgeService, OutboxSender
 from .pricing import PriceMatrix
 
 ROOT = Path(__file__).resolve().parents[1]
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -52,7 +54,13 @@ class Services:
         self.matrix = PriceMatrix.from_xlsx(s.path("pricing_matrix"), vat_rate=s.raw["vat_rate"])
         self.templates = load_templates(s.path("contract_templates"))
         self.crm = JsonCRM(s.path("crm"))
-        self.secret = (os.environ.get("CLOSING_WIDGET_SECRET") or secrets.token_hex(16)).encode()
+        secret = os.environ.get("CLOSING_WIDGET_SECRET")
+        if not secret:
+            # Dev fallback only: links die on restart and differ between workers.
+            log.warning("CLOSING_WIDGET_SECRET is not set - buyer links will stop working after a restart "
+                        "and are not shared between workers. Set it in production.")
+            secret = secrets.token_hex(16)
+        self.secret = secret.encode()
         with open(s.path("nudge_messages"), encoding="utf-8") as fh:
             messages = yaml.safe_load(fh)
         n = s.raw["nudges"]
