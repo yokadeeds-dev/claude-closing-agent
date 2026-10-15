@@ -4,7 +4,7 @@ Everything you will normally change lives in three places, and none of it needs 
 
 | You want to… | Edit | Then |
 |---|---|---|
-| Change prices, add a product, change volume or term discounts | `data/pricing_matrix.xlsx` | run the price check (below) |
+| Change prices, add a product, change volume or term discounts | `data/pricing_matrix.xlsx` | run the price check (below), then restart the service |
 | Change how the assistant talks, what it may and may not do | `config/system_prompt.md` | restart the service |
 | Change discount limit, VAT, reminder timing | `config/settings.yaml` | restart the service |
 | Change reminder e-mail wording | `config/nudge_messages.yaml` | restart the service |
@@ -29,7 +29,9 @@ Three sheets. Keep the header row exactly as it is.
 
 **TermDiscounts** — `term_months`, `discount_pct`. Only these contract lengths can be offered. Applies to monthly products only.
 
-**To add a new product:** add a row to *Products*, add its rows to *VolumeTiers*, save, run the price check.
+**To add a new product:** add a row to *Products*, add its rows to *VolumeTiers*, save, run the price check, restart the service.
+
+The workbook is read once when the service starts. Until you restart it, the assistant keeps quoting the old prices.
 
 ### Price check (do this after every change)
 
@@ -38,6 +40,12 @@ python scripts/validate_pricing.py
 ```
 
 It recalculates every quote in `data/reference_quotes.csv` (export of your existing quote sheet: `ref, sku, quantity, term_months, total_net`) and writes `docs/pricing_variance_report.md`. Every row must be within ±1 %. If one is not, either the workbook or the old quote is wrong — the report shows which row.
+
+What this check does and does not tell you:
+
+- It proves that the **engine calculates correctly** against quotes you already trust.
+- It does **not** check whether new prices are plausible. A typo such as 1200 instead of 120 is only caught if that product appears in `reference_quotes.csv`.
+- After an intended price change (e.g. the quarterly update) the old quotes for the changed products no longer match. That is expected: replace those rows in `reference_quotes.csv` with quotes at the new prices, then run the check again.
 
 ## 2. The assistant's instructions (`config/system_prompt.md`)
 
