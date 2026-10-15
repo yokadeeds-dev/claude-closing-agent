@@ -9,7 +9,7 @@ Practice delivery: proposal written for a real, public brief ([docs/BRIEF.md](BR
 ```text
 Hi,
 
-Quick note first: Claude-Instant and Claude-2 are retired. I'd build on the current Claude models — Sonnet 5.5 for the closing conversation, Haiku 5.5 for bulk document checks — which are far stronger and cheaper per deal. Rough running cost: well under $0.20 per closed deal.
+Quick note first: Claude-Instant and Claude-2 are retired. I'd build on the current Claude models — Sonnet 5.5 for the closing conversation — far stronger and cheaper per deal. The document checks themselves run as plain code, no AI needed. Rough running cost: well under $0.20 per closed deal.
 
 How I'd hit your acceptance criteria:
 
@@ -20,7 +20,7 @@ How I'd hit your acceptance criteria:
 
 Guardrail I'd recommend: discounts above a limit you set go to a human for one-click approval.
 
-Relevant work: production-style RAG assistant (FastAPI, Claude API, Postgres/pgvector, CI/CD) and several MCP servers connecting Claude to real software — github.com/yokadeeds-dev
+Relevant work: a RAG assistant prototype with a measured evaluation (FastAPI, Claude API, Postgres/pgvector, CI) and several MCP servers connecting Claude to real software — github.com/yokadeeds-dev
 
 Three questions:
 - Which CRM (HubSpot, Pipedrive, Salesforce, Zoho…)?
