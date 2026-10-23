@@ -2,7 +2,7 @@
 
 Claude-powered agent that takes a prospect from **"verbal yes" to a complete, signed contract**: presents exact prices from the client's pricing matrix, audits contracts for missing fields, signatures and initials, nudges the buyer until everything is in order, and only then marks the deal won.
 
-Built as a practice delivery for a real freelance brief — see [docs/BRIEF.md](docs/BRIEF.md) and the [proposal](docs/PROPOSAL.md).
+Requirements and acceptance criteria: [docs/BRIEF.md](docs/BRIEF.md).
 
 ## How it meets the acceptance criteria
 
