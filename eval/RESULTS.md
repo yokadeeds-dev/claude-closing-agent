@@ -26,7 +26,7 @@ The agent acts on an environment, so cases are graded mainly on the **end state*
 
 Cost from the API's `usage` (cache reads 0.1×, cache writes 1.25× input price).
 
-**Reading this honestly:** on this set all three models pass, so the eval **cannot rank them** — it is saturated. With 16 cases and one run, a difference below roughly ±25 percentage points would be noise. The result supports the proposal's claim that Sonnet 5.5 is a viable cheaper option; it does **not** yet justify switching production to Haiku. Before that: harder cases (multi-turn negotiation, ambiguous order changes, contract re-issue flows) and 3 runs per case.
+**Reading this honestly:** on this set all three models pass, so the eval **cannot rank them** — it is saturated. With 16 cases and one run, a difference below roughly ±25 percentage points would be noise. The result supports Sonnet 5.5 as a viable cheaper option; it does **not** yet justify switching production to Haiku. Before that: harder cases (multi-turn negotiation, ambiguous order changes, contract re-issue flows) and 3 runs per case.
 
 ## Grader checks (before trusting the numbers)
 
