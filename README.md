@@ -1,5 +1,7 @@
 # Closing Agent
 
+> Practice project built against a publicly posted project brief. Not a client engagement, not paid.
+
 Claude-powered agent that takes a prospect from **"verbal yes" to a complete, signed contract**: presents exact prices from the client's pricing matrix, audits contracts for missing fields, signatures and initials, nudges the buyer until everything is in order, and only then marks the deal won.
 
 Requirements and acceptance criteria: [docs/BRIEF.md](docs/BRIEF.md).
