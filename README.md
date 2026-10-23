@@ -80,4 +80,12 @@ python -m eval.run --variant baseline        # ~$0.50 on Opus 5.5
 | M4 Closing agent + reminders + guardrails | ✅ done — unit-tested with a fake client and verified live against the Claude API ([transcript](docs/live_run.md)) |
 | M5 Widget, sidebar, hand-off guide | ✅ done; real CRM adapter (client's CRM unknown) and deployment pending |
 
-Not done (would need client input): real CRM adapter, e-mail delivery (SMTP/CRM API instead of `data/outbox.jsonl`), e-sign webhook, scanned-PDF signature detection (vision), persistent chat sessions across restarts, inbound rate limit on `/chat`, audit log.
+Not done — needs client input: real CRM adapter, e-mail delivery (SMTP/CRM API instead of `data/outbox.jsonl`), e-sign webhook, where and how long chat transcripts are stored.
+
+Not done — deferred in the prototype, required for production:
+
+- **Scanned PDFs.** A scan has no form fields and no text layer, and there is no check for that case, so the audit reports every required field and signature as `missing` even when the contract is signed. Never a false *closed won*, but the buyer would get needless reminders. Next step: detect "no text" and create a CRM task for a person instead of a reminder; signature detection by vision after testing on real scans.
+- **Chat sessions live in memory** (`agent.py`). A restart loses the conversation, not the deal: option, discount requests, tasks (CRM) and reminders (SQLite) are stored. The agent can fetch the deal state with its tools; it does not reload it automatically.
+- **No inbound rate limit on `/chat`.** Each request needs the per-deal link, messages are capped at 4,000 characters and a turn at 8 tool rounds, but there is no limit on the number of messages. Messages for the same deal are processed one at a time — further requests wait rather than being rejected, and each one costs API fees.
+- **Price plausibility.** Loading the workbook checks structure and formats only; `validate_pricing.py` replays old quotes. A typo in a new price is not caught unless that product appears in `reference_quotes.csv`. Next step: an old-vs-new price list comparison with a sign-off threshold.
+- **Audit log.**
